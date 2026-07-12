@@ -41,6 +41,7 @@ jobs:
           cmake -G "Unix Makefiles" \
             -DPLATFORM_PS4=ON \
             -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_HMCS40=OFF \          # <-- Add this
             ..
 
       - name: Build pfbneo (PS4 PKG)
@@ -49,15 +50,6 @@ jobs:
           make pfbneo.deps
           make -j"$(nproc)" pfbneo_pkg
           mv *.pkg $GITHUB_WORKSPACE/ || echo "No pfbneo pkg"
-
-      - name: Build other cores (pgen, pnes, psnes, pgba)
-        run: |
-          cd cmake-build
-          make -j"$(nproc)" pgen_pkg   || echo "pgen failed"
-          make -j"$(nproc)" pnes_pkg   || echo "pnes failed"
-          make -j"$(nproc)" psnes_pkg  || echo "psnes failed"
-          make -j"$(nproc)" pgba_pkg   || echo "pgba failed"
-          mv *.pkg $GITHUB_WORKSPACE/ || true
 
       - name: Upload PS4 PKGs
         uses: actions/upload-artifact@v4
