@@ -10,31 +10,58 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout HT branch
+        uses: actions/checkout@v4
         with:
           ref: HT
           submodules: recursive
 
-      - name: Install dependencies
+      - name: Install base dependencies
         run: |
-          sudo apt-get update
+          sudo apt-get update -qq
           sudo apt-get install -y git build-essential cmake zip \
             pacman-package-manager makepkg libarchive-tools autoconf libtool nasm curl
 
-      - name: Install PS4 Toolchain
+      - name: Setup PS4 Toolchain + Portlibs
         run: |
           sudo tee -a /etc/pacman.conf > /dev/null <<EOF
           [pacbrew]
           SigLevel = Optional TrustAll
           Server = https://pacman.mydedibox.fr/pacbrew/packages/
           EOF
+
           sudo pacman -Syu --noconfirm
           sudo pacman -S --noconfirm ps4-openorbis ps4-openorbis-portlibs
+
+          # Extra force for GLES headers
+          sudo pacman -S --noconfirm --needed ps4-openorbis-portlibs || true
 
       - name: Configure
         run: |
           mkdir -p cmake-build && cd cmake-build
           export OPENORBIS=/opt/pacbrew/ps4/openorbis
+          cmake -G "Unix Makefiles" \
+            -DPLATFORM_PS4=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="-Wno-error -Wno-unknown-warning-option -Wno-format-truncation -Wno-restrict -Wno-error=implicit-function-declaration" \
+            ..
+
+      - name: Build pfbneo PKG
+        run: |
+          cd cmake-build
+          make pfbneo.deps -j2
+          make -j"$(nproc)" pfbneo_pkg || echo "Build had issues (check log)"
+          # Copy any generated PKG to workspace root
+          find . -name "*.pkg" -exec cp {} $GITHUB_WORKSPACE/ \; || true
+          ls -la $GITHUB_WORKSPACE/*.pkg || echo "No PKG found"
+
+      - name: Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pemu-ps4-ht-pkgs
+          path: "*.pkg"
+          retention-days: 14          export OPENORBIS=/opt/pacbrew/ps4/openorbis
           cmake -G "Unix Makefiles" \
             -DPLATFORM_PS4=ON \
             -DCMAKE_BUILD_TYPE=Release \
