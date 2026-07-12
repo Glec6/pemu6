@@ -33,8 +33,8 @@ jobs:
 
       - name: Fix missing GLES2 headers
         run: |
-          mkdir -p /opt/pacbrew/ps4/openorbis/usr/include/GLES2
-          cat > /opt/pacbrew/ps4/openorbis/usr/include/GLES2/gl2platform.h << 'EOF'
+          sudo mkdir -p /opt/pacbrew/ps4/openorbis/usr/include/GLES2
+          sudo tee /opt/pacbrew/ps4/openorbis/usr/include/GLES2/gl2platform.h > /dev/null << 'EOF'
           #ifndef __gl2platform_h_
           #define __gl2platform_h_
 
@@ -45,7 +45,7 @@ jobs:
 
           #endif
           EOF
-          echo "✅ GLES2/gl2platform.h created"
+          ls -l /opt/pacbrew/ps4/openorbis/usr/include/GLES2/gl2platform.h
 
       - name: Configure
         run: |
