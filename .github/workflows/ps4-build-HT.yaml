@@ -1,0 +1,67 @@
+name: PS4 PKG Build (HT Branch)
+
+on:
+  push:
+    branches: [ HT ]
+  pull_request:
+    branches: [ HT ]
+  workflow_dispatch:   # Manual trigger from GitHub UI
+
+jobs:
+  build-ps4:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout HT branch
+        uses: actions/checkout@v4
+        with:
+          ref: HT
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git build-essential cmake zip \
+            pacman-package-manager makepkg libarchive-tools autoconf libtool nasm curl
+
+      - name: Install PS4 toolchain (OpenOrbis)
+        run: |
+          sudo tee -a /etc/pacman.conf > /dev/null <<EOF
+          [pacbrew]
+          SigLevel = Optional TrustAll
+          Server = https://pacman.mydedibox.fr/pacbrew/packages/
+          EOF
+          sudo pacman -Syu --noconfirm
+          sudo pacman -S --noconfirm ps4-openorbis ps4-openorbis-portlibs
+
+      - name: Configure
+        run: |
+          mkdir -p cmake-build && cd cmake-build
+          export OPENORBIS=/opt/pacbrew/ps4/openorbis
+          cmake -G "Unix Makefiles" \
+            -DPLATFORM_PS4=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            ..
+
+      - name: Build pfbneo (PS4 PKG)
+        run: |
+          cd cmake-build
+          make pfbneo.deps
+          make -j"$(nproc)" pfbneo_pkg
+          mv *.pkg $GITHUB_WORKSPACE/ || echo "No pfbneo pkg"
+
+      - name: Build other cores (pgen, pnes, psnes, pgba)
+        run: |
+          cd cmake-build
+          make -j"$(nproc)" pgen_pkg   || echo "pgen failed"
+          make -j"$(nproc)" pnes_pkg   || echo "pnes failed"
+          make -j"$(nproc)" psnes_pkg  || echo "psnes failed"
+          make -j"$(nproc)" pgba_pkg   || echo "pgba failed"
+          mv *.pkg $GITHUB_WORKSPACE/ || true
+
+      - name: Upload PS4 PKGs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pemu-ps4-pkgs-ht
+          path: "*.pkg"
+          retention-days: 30
